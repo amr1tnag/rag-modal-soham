@@ -106,7 +106,8 @@
   #chat { flex: 1; overflow-y: auto; scroll-behavior: smooth; padding: 28px 24px 8px; }
   .inner { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 4px; }
 
-  .turn { display: flex; flex-direction: column; margin-bottom: 20px; }
+  .turn { display: flex; flex-direction: column; align-items: flex-start;
+          margin-bottom: 20px; }
   .turn.me { align-items: flex-end; }
 
   .msg { max-width: 96%; padding: 11px 15px; border-radius: var(--radius); overflow-wrap: anywhere; }
@@ -121,7 +122,8 @@
   .md > *:first-child { margin-top: 0; }
   .md > *:last-child  { margin-bottom: 0; }
   .md p { margin: 0 0 10px; }
-  .md ul, .md ol { margin: 0 0 10px; padding-left: 22px; }
+  .md ul { list-style: disc; margin: 0 0 10px; padding-left: 22px; }
+  .md ol { list-style: decimal; margin: 0 0 10px; padding-left: 22px; }
   .md li { display: list-item; background: none; border: 0; padding: 2px 0; font-size: inherit; }
   .md li::marker { color: var(--faint); }
   .md h1, .md h2, .md h3 {
@@ -147,13 +149,28 @@
   }
   @keyframes blink { 50% { opacity: 0; } }
 
-  .thinking { display: flex; gap: 4px; padding: 4px 2px; }
+  .thinking { display: flex; align-items: center; gap: 9px; padding: 2px 1px; }
+  .thinking .label {
+    font-size: 13.5px; color: var(--muted);
+    /* A slow shimmer reads as "working" without demanding attention. */
+    background: linear-gradient(90deg, var(--faint) 20%, var(--ink) 50%, var(--faint) 80%);
+    background-size: 220% 100%;
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    animation: shimmer 2.1s linear infinite;
+  }
+  .thinking .dots { display: flex; gap: 4px; }
   .thinking i {
-    width: 6px; height: 6px; border-radius: 50%; background: var(--faint);
+    width: 5px; height: 5px; border-radius: 50%; background: var(--faint);
     animation: bounce 1.3s ease-in-out infinite;
   }
   .thinking i:nth-child(2) { animation-delay: .16s; }
   .thinking i:nth-child(3) { animation-delay: .32s; }
+  @keyframes shimmer { to { background-position: -220% 0; } }
+  @media (prefers-reduced-motion: reduce) {
+    .thinking .label { animation: none; color: var(--muted);
+                       -webkit-text-fill-color: var(--muted); }
+    .thinking i, .caret { animation: none; }
+  }
   @keyframes bounce { 0%,60%,100% { opacity: .3; transform: translateY(0); }
                       30% { opacity: 1; transform: translateY(-3px); } }
 
@@ -518,7 +535,16 @@ $("form").onsubmit = async (e) => {
   const t = turn("bot");
   const msg = document.createElement("div");
   msg.className = "msg";
-  msg.innerHTML = '<div class="thinking"><i></i><i></i><i></i></div>';
+  // The label tracks the pipeline: retrieval finishes when the sources event
+  // lands, so "Searching" giving way to "Thinking" is a real signal, not a
+  // timed animation.
+  msg.innerHTML =
+    '<div class="thinking"><span class="label">Searching your documents</span>' +
+    '<span class="dots"><i></i><i></i><i></i></span></div>';
+  const setStage = (text) => {
+    const label = msg.querySelector(".thinking .label");
+    if (label) label.textContent = text;
+  };
   t.appendChild(msg);
 
   let raw = "", cites = null, first = true;
@@ -559,6 +585,10 @@ $("form").onsubmit = async (e) => {
             raw += `\n\n_[error: ${ev.error}]_`;
 
           } else if (ev.type === "sources" && ev.sources.length) {
+            setStage(
+              `Thinking — read ${ev.sources.length} passage` +
+              (ev.sources.length === 1 ? "" : "s")
+            );
             cites = document.createElement("div");
             cites.className = "cites";
             for (const s of ev.sources) {
