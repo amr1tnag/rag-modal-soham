@@ -5,9 +5,8 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Where Chroma persists its vectors on disk.
-CHROMA_DIR = os.getenv("CHROMA_DIR", str(BASE_DIR / "chroma_db"))
-COLLECTION_NAME = os.getenv("COLLECTION_NAME", "documents")
+# Where the vector store persists to disk.
+STORE_DIR = os.getenv("STORE_DIR", str(BASE_DIR / "store_data"))
 
 # Ollama. Pull these first:  ollama pull nomic-embed-text && ollama pull llama3.2
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")

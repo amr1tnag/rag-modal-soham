@@ -5,9 +5,12 @@ Upload PDFs, text, or Markdown; ask questions; get answers grounded in those
 documents with citations. No API keys, no cloud, nothing leaves your computer.
 
 - **Ollama** — embeddings and text generation, both local
-- **ChromaDB** — persistent vector store on disk
+- **NumPy** — vectors persisted to disk, cosine search by dot product
 - **FastAPI** — backend and streaming API
 - **Plain HTML/JS** — no build step, no npm
+
+No compiler needed: every dependency ships prebuilt wheels on Windows, macOS,
+and Linux.
 
 ## 1. Install Ollama
 
@@ -38,16 +41,30 @@ git clone https://github.com/amr1tnag/rag-modal-soham.git
 cd rag-modal-soham
 
 python -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Python 3.10 or newer.
+On **Windows PowerShell**, `source` doesn't exist — use the venv's Python
+directly, which avoids activation entirely:
+
+```powershell
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+Python 3.10 or newer. Python 3.13 is fine.
 
 ## 3. Run it
 
 ```bash
 uvicorn app.main:app --reload
+```
+
+Windows PowerShell:
+
+```powershell
+.venv\Scripts\python.exe -m uvicorn app.main:app --reload
 ```
 
 Open <http://localhost:8000>. The dot in the sidebar turns green once Ollama is
@@ -62,11 +79,11 @@ stream in token by token, with the source documents shown underneath.
 upload ──> extract text ──> chunk (1000 chars, 150 overlap)
                                   │
                                   ├──> Ollama embeds each chunk
-                                  └──> stored in ChromaDB
+                                  └──> stored in store_data/vectors.npz
 
 ask ──> Ollama embeds the question
             │
-            ├──> Chroma returns the 4 nearest chunks (cosine)
+            ├──> dot product against every chunk -> 4 nearest (cosine)
             └──> chunks + question ──> llama3.2 ──> streamed answer
 ```
 
@@ -86,7 +103,7 @@ Every setting is an environment variable with a sensible default
 | `CHUNK_SIZE` | `1000` | Chunk length in characters |
 | `CHUNK_OVERLAP` | `150` | Shared characters between chunks |
 | `TOP_K` | `4` | Chunks retrieved per question |
-| `CHROMA_DIR` | `./chroma_db` | Vector store location |
+| `STORE_DIR` | `./store_data` | Vector store location |
 
 Example — use a bigger model:
 
@@ -120,6 +137,11 @@ desktop app, or `ollama serve`.
 
 **Answers are slow** — generation is CPU-bound without a GPU. Try a smaller
 model: `ollama pull llama3.2:1b` then `CHAT_MODEL=llama3.2:1b`.
+
+**`pip install` fails building a wheel** — shouldn't happen any more, since
+nothing here needs compiling. If it does, make sure you pulled the latest of
+this branch; earlier revisions depended on ChromaDB, which requires a C++
+toolchain on Windows.
 
 **A PDF indexes as 0 chunks** — it's a scanned image with no text layer. This
 app doesn't do OCR; run the PDF through OCR first.

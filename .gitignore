@@ -1,4 +1,4 @@
-chroma_db/
+store_data/
 __pycache__/
 *.pyc
 .venv/
