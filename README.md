@@ -71,7 +71,15 @@ Open <http://localhost:8000>. The dot in the sidebar turns green once Ollama is
 reachable and both models are pulled.
 
 Drop a PDF into the sidebar, wait for "Indexed", then ask a question. Answers
-stream in token by token, with the source documents shown underneath.
+stream in token by token, with the matched sources shown underneath — click a
+source chip to read the exact text the answer was drawn from.
+
+Follow-up questions work: "explain that more simply" keeps the previous turn in
+view. "Start a new conversation" in the sidebar clears that memory without
+touching your indexed documents.
+
+By default answers never mention filenames — the model isn't shown them. Set
+`CITE_SOURCES=true` if you would rather it cite documents by name in the text.
 
 ## How it works
 
@@ -103,6 +111,9 @@ Every setting is an environment variable with a sensible default
 | `CHUNK_SIZE` | `1000` | Chunk length in characters |
 | `CHUNK_OVERLAP` | `150` | Shared characters between chunks |
 | `TOP_K` | `4` | Chunks retrieved per question |
+| `HISTORY_TURNS` | `3` | Previous Q&A pairs carried into a follow-up |
+| `CITE_SOURCES` | `false` | Let the model name source files in its answer |
+| `SYSTEM_PROMPT` | *(see config.py)* | Overrides the assistant's instructions wholesale |
 | `STORE_DIR` | `./store_data` | Vector store location |
 
 Example — use a bigger model:
@@ -145,6 +156,14 @@ toolchain on Windows.
 
 **A PDF indexes as 0 chunks** — it's a scanned image with no text layer. This
 app doesn't do OCR; run the PDF through OCR first.
+
+**Answers mention the PDF filename** — set `CITE_SOURCES=false` (the default).
+If it still happens, the model is echoing a name that appears inside the
+document text itself, which no prompt setting can remove.
+
+**A follow-up question gets the wrong context** — retrieval blends the previous
+question with the new one. Ask a fully-worded question, or click "Start a new
+conversation" when changing topic.
 
 **Answers ignore the document** — raise `TOP_K` to pull in more context, or
 lower `CHUNK_SIZE` so retrieval is more precise.

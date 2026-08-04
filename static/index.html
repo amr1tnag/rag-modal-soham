@@ -70,7 +70,15 @@
   .cites { align-self: flex-start; max-width: 720px; font-size: 12px;
            color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px; }
   .cite { background: var(--panel); border: 1px solid var(--line);
-          border-radius: 999px; padding: 2px 9px; }
+          border-radius: 999px; padding: 2px 9px; cursor: pointer;
+          font: inherit; color: inherit; }
+  .cite:hover { border-color: var(--accent); color: var(--accent); }
+  .excerpt { align-self: flex-start; max-width: 720px; font-size: 12.5px;
+             background: var(--panel); border: 1px solid var(--line);
+             border-left: 3px solid var(--accent); border-radius: 8px;
+             padding: 10px 13px; white-space: pre-wrap; color: var(--muted); }
+  .excerpt b { color: var(--ink); display: block; margin-bottom: 5px;
+               font-size: 12px; }
   .hint { margin: auto; text-align: center; color: var(--muted); font-size: 14px; }
 
   form { display: flex; gap: 10px; padding: 16px 26px 22px;
@@ -108,7 +116,10 @@
     <p class="empty" id="noSources">Nothing indexed yet.</p>
   </div>
 
-  <button class="link" id="reset">Clear all documents</button>
+  <div style="display: grid; gap: 8px">
+    <button class="link" id="newChat">Start a new conversation</button>
+    <button class="link" id="reset">Clear all documents</button>
+  </div>
 </aside>
 
 <main>
@@ -215,6 +226,16 @@ box.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("form").requestSubmit(); }
 });
 
+// The conversation lives here, in the browser — the API stays stateless.
+// Sent with each question so follow-ups like "explain that simply" resolve.
+let history = [];
+
+$("newChat").onclick = () => {
+  history = [];
+  chat.innerHTML = '<p class="hint">New conversation. Ask about your documents.</p>';
+  box.focus();
+};
+
 $("form").onsubmit = async (e) => {
   e.preventDefault();
   const question = box.value.trim();
@@ -231,7 +252,7 @@ $("form").onsubmit = async (e) => {
     const res = await fetch("/api/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question }),
+      body: JSON.stringify({ question, history }),
     });
     if (!res.ok) {
       answer.textContent = (await res.json()).detail ?? "Request failed.";
@@ -254,13 +275,29 @@ $("form").onsubmit = async (e) => {
           else if (ev.type === "sources" && ev.sources.length) {
             cites = document.createElement("div");
             cites.className = "cites";
-            const seen = new Set();
             for (const s of ev.sources) {
-              if (seen.has(s.source)) continue;
-              seen.add(s.source);
-              const tag = document.createElement("span");
+              const tag = document.createElement("button");
               tag.className = "cite";
+              tag.type = "button";
               tag.textContent = `${s.source} · ${s.score}`;
+              tag.title = "Show the text this came from";
+              // Toggle the retrieved chunk so an answer can be checked
+              // against its source without leaving the page.
+              tag.onclick = () => {
+                if (tag.excerpt) {
+                  tag.excerpt.remove();
+                  tag.excerpt = null;
+                  return;
+                }
+                const box = document.createElement("div");
+                box.className = "excerpt";
+                const label = document.createElement("b");
+                label.textContent = `${s.source} — similarity ${s.score}`;
+                box.append(label, document.createTextNode(s.text));
+                cites.after(box);
+                tag.excerpt = box;
+                box.scrollIntoView({ block: "nearest", behavior: "smooth" });
+              };
               cites.appendChild(tag);
             }
             chat.appendChild(cites);
@@ -270,6 +307,8 @@ $("form").onsubmit = async (e) => {
       }
       if (cites) chat.appendChild(cites); // keep citations below the answer
     }
+    history.push({ role: "user", content: question });
+    history.push({ role: "assistant", content: answer.textContent });
   } catch (err) {
     answer.textContent = "Request failed: " + err;
   } finally {

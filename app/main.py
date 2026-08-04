@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from app import store
 from app.chunking import chunk_text, extract_text
 from app.config import CHAT_MODEL, EMBED_MODEL, OLLAMA_HOST, TOP_K
-from app.rag import stream_answer
+from app.rag import condense, stream_answer
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 ALLOWED_SUFFIXES = {".pdf", ".txt", ".md"}
@@ -22,9 +22,16 @@ MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 app = FastAPI(title="Local RAG")
 
 
+class Turn(BaseModel):
+    role: str
+    content: str
+
+
 class Question(BaseModel):
     question: str
     top_k: int = TOP_K
+    # The browser owns the conversation; the server stays stateless.
+    history: list[Turn] = []
 
 
 @app.get("/api/health")
@@ -99,8 +106,10 @@ def ask(payload: Question) -> StreamingResponse:
     if not question:
         raise HTTPException(400, "Question cannot be empty.")
 
+    history = [turn.model_dump() for turn in payload.history]
+
     try:
-        hits = store.search(question, top_k=payload.top_k)
+        hits = store.search(condense(question, history), top_k=payload.top_k)
     except Exception as exc:
         raise HTTPException(
             503, f"Retrieval failed — is Ollama running? ({exc})"
@@ -110,7 +119,7 @@ def ask(payload: Question) -> StreamingResponse:
         # Sources go first so the UI can show citations while tokens stream in.
         yield json.dumps({"type": "sources", "sources": hits}) + "\n"
         try:
-            for token in stream_answer(question, hits):
+            for token in stream_answer(question, hits, history):
                 yield json.dumps({"type": "token", "text": token}) + "\n"
         except Exception as exc:
             yield json.dumps({"type": "error", "error": str(exc)}) + "\n"
