@@ -14,16 +14,18 @@
     --shadow: 0 1px 2px rgba(16,17,20,.05), 0 8px 24px rgba(16,17,20,.05);
     --radius: 14px;
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #0d0e11;    --panel: #141519;   --raise: #1a1c21;
-      --ink: #eceef2;   --muted: #9aa1ad;   --faint: #6c7481;
-      --line: #26282f;  --line-soft: #1e2026;
-      --accent: #5b8dff; --accent-soft: #182234;
-      --bot: #1c1e24;
-      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
-    }
+  /* Dark is the default look. The light palette above stays as the fallback
+     for :root[data-theme="light"], which the toggle sets and persists. */
+  :root:not([data-theme="light"]) {
+    --bg: #0d0e11;    --panel: #141519;   --raise: #1a1c21;
+    --ink: #eceef2;   --muted: #9aa1ad;   --faint: #6c7481;
+    --line: #26282f;  --line-soft: #1e2026;
+    --accent: #5b8dff; --accent-soft: #182234;
+    --bot: #1c1e24;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+    color-scheme: dark;
   }
+  :root[data-theme="light"] { color-scheme: light; }
   * { box-sizing: border-box; }
   html, body { height: 100%; }
   body {
@@ -301,6 +303,7 @@
   </div>
 
   <div class="foot">
+    <button class="link" id="theme">◐ Switch to light</button>
     <button class="link" id="newChat">↻ New conversation</button>
     <button class="link danger" id="reset">Clear all documents</button>
   </div>
@@ -506,6 +509,16 @@ $("newChat").onclick = () => {
 };
 
 $("burger").onclick = () => $("side").classList.toggle("open");
+
+/* ── theme ─────────────────────────────────────────────────────────── */
+function applyTheme(mode) {
+  document.documentElement.dataset.theme = mode;
+  $("theme").textContent = mode === "light" ? "◑ Switch to dark" : "◐ Switch to light";
+  localStorage.setItem("rag-theme", mode);
+}
+$("theme").onclick = () =>
+  applyTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light");
+applyTheme(localStorage.getItem("rag-theme") || "dark");
 
 /* ── composer ──────────────────────────────────────────────────────── */
 const box = $("q");
