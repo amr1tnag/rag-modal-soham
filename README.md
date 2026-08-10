@@ -57,14 +57,26 @@ Python 3.10 or newer. Python 3.13 is fine.
 
 ## 3. Run it
 
-```bash
-uvicorn app.main:app --reload
+```powershell
+.\run.ps1          # Windows
 ```
 
-Windows PowerShell:
+```bash
+./run.sh           # macOS / Linux
+```
 
-```powershell
-.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+The launcher creates the virtual environment if it is missing, installs
+anything absent, warns when Ollama is not up, and starts the server. It calls
+the venv's Python by full path, so it works in a fresh terminal with nothing
+activated — `uvicorn is not recognized` happens when the shell is relying on
+an activation that a new window never inherited.
+
+To run it by hand instead:
+
+```bash
+uvicorn app.main:app --reload                              # venv activated
+.venv/bin/python -m uvicorn app.main:app --reload          # macOS / Linux
+.venv\Scripts\python.exe -m uvicorn app.main:app --reload  # Windows
 ```
 
 Open <http://localhost:8000>. The dot in the sidebar turns green once Ollama is
@@ -148,6 +160,13 @@ desktop app, or `ollama serve`.
 
 **Answers are slow** — generation is CPU-bound without a GPU. Try a smaller
 model: `ollama pull llama3.2:1b` then `CHAT_MODEL=llama3.2:1b`.
+
+**`uvicorn is not recognized`** — the venv isn't active in this terminal.
+Use `.\run.ps1` (Windows) or `./run.sh`, which never depends on activation.
+
+**PowerShell refuses to run `run.ps1`** — script execution is disabled by
+default. Allow it for your own account, once:
+`Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`
 
 **`pip install` fails building a wheel** — shouldn't happen any more, since
 nothing here needs compiling. If it does, make sure you pulled the latest of
