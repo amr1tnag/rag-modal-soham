@@ -110,6 +110,66 @@ ask ──> Ollama embeds the question
 The model is instructed to answer only from the retrieved context and to say so
 when the answer isn't there — that's what keeps it from inventing facts.
 
+## Evaluating the pipeline
+
+`eval/` measures answer quality with [DeepEval](https://github.com/confident-ai/deepeval),
+judged by a local Ollama model rather than the OpenAI default — so evaluation
+sends nothing off the machine, and needs no API key. DeepEval's own telemetry
+is switched off in the runner.
+
+```bash
+pip install -r requirements-eval.txt
+
+python -m eval.run_eval --retrieval    # retrieval only, seconds, no judge
+python -m eval.run_eval                # full run, judged (slow on CPU)
+python -m eval.run_eval --limit 3      # short loop while tuning
+```
+
+It indexes `eval/corpus/` into a scratch store, so your own documents are
+never touched or overwritten.
+
+**The golden set** lives in `eval/dataset.py` — ten questions with known
+answers, each tagged with what it probes: plain fact lookup, a question
+paraphrased away from the document's wording, a rule that must be applied to
+a number, a distractor where two similar figures sit in one sentence, a
+counterintuitive answer that punishes falling back on training data, and one
+unanswerable question where refusing is the correct outcome. Add your own
+goldens there; that is where the value of this compounds.
+
+**What gets measured**
+
+| Metric | Question it answers | Blames |
+| --- | --- | --- |
+| Retrieval hit rate | Did the chunk holding the answer come back? | retrieval |
+| Contextual Precision | Are the useful chunks ranked above the noise? | retrieval |
+| Contextual Recall | Was everything needed for the answer retrieved? | retrieval / chunking |
+| Contextual Relevancy | How much retrieved text was actually on topic? | chunk size, `TOP_K` |
+| Faithfulness | Does the answer stick to the context, or invent? | prompt, model |
+| Answer Relevancy | Does it actually answer the question asked? | model |
+
+The split matters: a low Faithfulness score means the model is drifting, while
+low Contextual Recall means retrieval never gave it a chance. Fixing the wrong
+half is the usual way to waste an afternoon.
+
+The hit rate is computed by substring match — no judge, no cost, and it can be
+trusted absolutely. The other five are LLM-judged and carry that judge's
+error. Treat them as directional, and compare runs against each other rather
+than against an absolute bar.
+
+**Choosing a judge.** It defaults to `CHAT_MODEL`, which means a 3B model is
+grading itself — cheap, but not impartial and not very discerning. For results
+worth acting on, judge with something larger:
+
+```bash
+ollama pull qwen2.5:14b
+JUDGE_MODEL=qwen2.5:14b python -m eval.run_eval
+```
+
+**Warnings the runner raises.** If the corpus produces fewer chunks than
+`--top-k`, every question retrieves the whole corpus and the hit rate is 100%
+by construction. The runner says so rather than reporting a score that cannot
+fail.
+
 ## Configuration
 
 Every setting is an environment variable with a sensible default
