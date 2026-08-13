@@ -165,6 +165,24 @@ ollama pull qwen2.5:14b
 JUDGE_MODEL=qwen2.5:14b python -m eval.run_eval
 ```
 
+**Reading the output.** After the aggregate table, the runner prints every
+question with each metric's score, whether it cleared the threshold, and the
+judge's stated reason when it did not — the reason is the actionable part, a
+bare number tells you nothing about what to change. Questions whose answer
+chunk was never retrieved are flagged, because their generation scores are
+unearned either way.
+
+`--json results.json` writes the same data structured, so runs can be diffed:
+
+```bash
+python -m eval.run_eval --json before.json
+# change CHUNK_SIZE, TOP_K, or the prompt
+python -m eval.run_eval --json after.json
+```
+
+The process exits non-zero if any question fails any metric, so it can gate a
+commit or a CI job.
+
 **Warnings the runner raises.** If the corpus produces fewer chunks than
 `--top-k`, every question retrieves the whole corpus and the hit rate is 100%
 by construction. The runner says so rather than reporting a score that cannot

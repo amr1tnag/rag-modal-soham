@@ -205,14 +205,88 @@ def main() -> int:
 
     results = evaluate(test_cases=cases, metrics=build_metrics(args.threshold))
 
+    report = collect(results, extras)
+    print_report(report, args.threshold)
+
     if args.json:
-        args.json.write_text(
-            json.dumps(
-                {"extras": extras, "results": str(results)}, indent=2
-            ),
-            encoding="utf-8",
+        args.json.write_text(json.dumps(report, indent=2), encoding="utf-8")
+        print(f"\nWrote {args.json}")
+
+    # Non-zero when anything failed, so this can gate a commit or CI run.
+    failed = sum(1 for q in report["questions"] if not q["passed"])
+    return 1 if failed else 0
+
+
+# ── reporting ──────────────────────────────────────────────────────────────
+
+def collect(results, extras: list[dict]) -> dict:
+    """Flatten DeepEval's result object into plain data we can print or store."""
+    questions, by_metric = [], {}
+
+    for i, test in enumerate(results.test_results):
+        metrics = []
+        for m in test.metrics_data or []:
+            metrics.append(
+                {
+                    "metric": m.name,
+                    "score": None if m.score is None else round(m.score, 3),
+                    "passed": bool(m.success),
+                    "reason": m.reason,
+                    "error": m.error,
+                }
+            )
+            by_metric.setdefault(m.name, []).append(m.score)
+
+        extra = extras[i] if i < len(extras) else {}
+        questions.append(
+            {
+                "question": test.input,
+                "tags": extra.get("tags", []),
+                "answer": test.actual_output,
+                "expected": test.expected_output,
+                "retrieval_hit": extra.get("retrieval_hit"),
+                "seconds": extra.get("seconds"),
+                "passed": bool(test.success),
+                "metrics": metrics,
+            }
         )
-    return 0
+
+    averages = {
+        name: round(sum(s for s in scores if s is not None) / max(1, len(scores)), 3)
+        for name, scores in by_metric.items()
+    }
+    return {"judge": JUDGE_MODEL, "averages": averages, "questions": questions}
+
+
+def print_report(report: dict, threshold: float) -> None:
+    print("\n" + "=" * 78)
+    print(f"Per-question detail (threshold {threshold}, judge {report['judge']})")
+    print("=" * 78)
+
+    for q in report["questions"]:
+        tags = f"  [{', '.join(q['tags'])}]" if q["tags"] else ""
+        print(f"\n{'PASS' if q['passed'] else 'FAIL'}  {q['question']}{tags}")
+        print(f"      answer:   {q['answer'][:150].strip()}")
+        if q["retrieval_hit"] is False:
+            print("      NOTE: the chunk holding the answer was never retrieved —")
+            print("            treat the generation scores below as unearned.")
+        for m in q["metrics"]:
+            mark = "ok  " if m["passed"] else "FAIL"
+            print(f"      {mark} {m['metric']:<22} {m['score']}")
+            # The reason is the useful part; a bare number says nothing about
+            # what to change.
+            if not m["passed"] and m["reason"]:
+                print(f"           ↳ {m['reason'][:300]}")
+            if m["error"]:
+                print(f"           ↳ judge error: {m['error'][:200]}")
+
+    print("\n" + "=" * 78)
+    print("Averages")
+    for name, avg in report["averages"].items():
+        bar = "█" * int(avg * 24)
+        print(f"  {name:<24} {avg:<6} {bar}")
+    passed = sum(1 for q in report["questions"] if q["passed"])
+    print(f"\n  {passed}/{len(report['questions'])} questions passed every metric")
 
 
 if __name__ == "__main__":
